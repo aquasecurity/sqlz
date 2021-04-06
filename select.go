@@ -2,7 +2,11 @@ package sqlz
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"math"
+	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/jmoiron/sqlx"
@@ -50,6 +54,7 @@ type SelectStmt struct {
 	IsUnionAll      bool
 	orderWithNulls  orderWithNulls
 	queryer         Queryer
+	driverName      string
 	DistinctColumns []string
 	Columns         []string
 	Joins           []JoinClause
@@ -165,9 +170,10 @@ func Desc(col string) OrderColumn {
 // Select("one", "two t", "MAX(three) maxThree")
 func (db *DB) Select(cols ...string) *SelectStmt {
 	return &SelectStmt{
-		Columns:   append([]string{}, cols...),
-		queryer:   db.DB,
-		Statement: &Statement{db.ErrHandlers},
+		Columns:    append([]string{}, cols...),
+		queryer:    db.DB,
+		driverName: db.DriverName(),
+		Statement:  &Statement{db.ErrHandlers},
 	}
 }
 
@@ -177,9 +183,10 @@ func (db *DB) Select(cols ...string) *SelectStmt {
 // Select("one", "two t", "MAX(three) maxThree")
 func (tx *Tx) Select(cols ...string) *SelectStmt {
 	return &SelectStmt{
-		Columns:   append([]string{}, cols...),
-		queryer:   tx.Tx,
-		Statement: &Statement{tx.ErrHandlers},
+		Columns:    append([]string{}, cols...),
+		queryer:    tx.Tx,
+		driverName: tx.DriverName(),
+		Statement:  &Statement{tx.ErrHandlers},
 	}
 }
 
@@ -712,4 +719,85 @@ func (stmt *SelectStmt) UnionAll(statements ...*SelectStmt) *SelectStmt {
 	stmt.Union(statements...)
 
 	return stmt
+}
+
+func (stmt *SelectStmt) GetEstimatedCount(createCountQuery, roundedCount bool) (count int64, err error) {
+	if !supportExplain(stmt.driverName) {
+		return stmt.GetCount()
+	}
+	defer stmt.HandleError(err)
+	countStmt := *stmt
+	if createCountQuery {
+		countStmt.Columns = []string{"1"}
+		countStmt.LimitTo = 0
+		countStmt.OffsetFrom = 0
+		countStmt.OffsetRows = 0
+		countStmt.Ordering = []SQLStmt{}
+	}
+
+	asSql, bindings := countStmt.ToSQL(true)
+	rows, err := stmt.queryer.Queryx(fmt.Sprintf("explain %s", asSql), bindings...)
+	if err != nil {
+		return count, err
+	}
+
+	count, err = parseEsimatedQueryResponse(rows)
+	if err != nil {
+		return count, err
+	}
+
+	if roundedCount {
+		count = roundResult(count)
+	}
+	return count, err
+}
+
+func supportExplain(driverName string) bool {
+	switch driverName {
+	case "postgres":
+		return true
+	case "pgx":
+		return true
+	case "pq-timeouts":
+		return true
+	default:
+		return false
+	}
+}
+func roundResult(count int64) int64 {
+	if count <= 0 {
+		return 0
+	}
+	//the value is rounded for simpler and more explicit representation
+	//e.g., in case of the '1234567' the returned value will be 1000000
+	exponent := math.Pow10(int(math.Floor(math.Log10(float64(count)))))
+	mantissa := count / int64(exponent)
+
+	return mantissa * int64(exponent)
+}
+func parseEsimatedQueryResponse(rows *sqlx.Rows) (count int64, err error) {
+	defer rows.Close()
+	regex, err := regexp.Compile(`\brows=(?P<count>\d+)\b`)
+	if err != nil {
+		return count, err
+	}
+	for rows.Next() {
+		var resp string
+		if err = rows.Scan(&resp); err != nil {
+			return count, err
+		}
+		res := regex.FindStringSubmatch(resp)
+
+		for i, name := range regex.SubexpNames() {
+			if name != "count" || i >= len(res) {
+				continue
+			}
+			count, err = strconv.ParseInt(res[i], 10, 64)
+			return count, err
+
+		}
+	}
+
+	return count, errors.New("failed finding rows count")
+
 }

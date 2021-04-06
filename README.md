@@ -1,10 +1,10 @@
 <h2 align="center">sqlz</h2>
 <p align="center">Flexible SQL query builder for Go</p>
 <p align="center">
-	<a href="https://godoc.org/github.com/ido50/sqlz"><img src="https://img.shields.io/badge/godoc-reference-blue.svg"></a>
+	<a href="https://godoc.org/github.com/aquasecurity/sqlz"><img src="https://img.shields.io/badge/godoc-reference-blue.svg"></a>
     <a href="https://opensource.org/licenses/Apache-2.0"><img src="https://img.shields.io/badge/License-Apache%202.0-blue.svg"></a>
-	<a href="https://goreportcard.com/report/ido50/sqlz"><img src="https://goreportcard.com/badge/github.com/ido50/sqlz"></a>
-    <a href="https://github.com/ido50/sqlz/actions"><img src="https://github.com/ido50/sqlz/workflows/build/badge.svg"></a>
+	<a href="https://goreportcard.com/report/aquasecurity/sqlz"><img src="https://goreportcard.com/badge/github.com/aquasecurity/sqlz"></a>
+    <a href="https://github.com/aquasecurity/sqlz/actions"><img src="https://github.com/aquasecurity/sqlz/workflows/build/badge.svg"></a>
 </p>
 
 ---
@@ -30,7 +30,7 @@ transaction as necessary.
 ## Install
 
 ```go
-go get -u github.com/ido50/sqlz
+go get -u github.com/aquasecurity/sqlz
 ```
 
 ## Usage
@@ -46,7 +46,7 @@ package main
 import (
     "fmt"
     "database/sql"
-    "github.com/ido50/sqlz"
+    "github.com/aquasecurity/sqlz"
     _ "sql driver of choice"
 )
 

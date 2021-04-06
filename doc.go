@@ -25,7 +25,7 @@
 //		import (
 //			"fmt"
 //			"database/sql"
-//			"github.com/ido50/sqlz"
+//			"github.com/aquasecurity/sqlz"
 //			_ "sql driver of choice"
 //		)
 //
